@@ -5,9 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../hooks/useAuth';
 import { useTheme } from '../../theme-provider';
-import { Sparkles, Flag, ChevronRight, HelpCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Sparkles, Flag, HelpCircle } from 'lucide-react';
 
-export default function WelcomePage() {
+export default function PreferencesPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
   const { theme } = useTheme();
@@ -23,12 +23,12 @@ export default function WelcomePage() {
     setIsDarkMode(theme === 'dark');
   }, [user, loading, router, theme]);
 
-  const handleStartOnboarding = () => {
-    router.push('/onboarding/niche'); // Navigate to niche selection page
+  const handleBack = () => {
+    router.push('/onboarding/connect'); // Go back to connect page
   };
 
-  const handleSkipOnboarding = () => {
-    router.push('/dashboard'); // Redirect to main dashboard after skipping
+  const handleContinue = () => {
+    router.push('/dashboard'); // Navigate to dashboard after onboarding
   };
 
   if (loading) {
@@ -67,19 +67,19 @@ export default function WelcomePage() {
         
         {/* Main Content Area */}
         <main className="flex-1 flex items-center justify-center p-4 md:p-8">
-          <div className="glass-card shadow-xl rounded-2xl w-full max-w-[720px] border border-white/20 dark:border-slate-700/50 flex flex-col overflow-hidden animate-fade-in-up">
+          <div className="glass-card shadow-xl rounded-2xl w-full max-w-[720px] border-white/20 dark:border-slate-700/50 flex flex-col overflow-hidden animate-fade-in-up">
             {/* Progress Header */}
             <div className="px-8 pt-8 pb-4 border-b border-slate-100 dark:border-slate-800">
               <div className="flex flex-col gap-3">
                 <div className="flex gap-6 justify-between items-center">
                   <div className="flex items-center gap-2">
                     <Flag className="text-primary" size={20} />
-                    <p className="text-slate-900 dark:text-white text-sm font-semibold uppercase tracking-wide">Introduction</p>
+                    <p className="text-slate-900 dark:text-white text-sm font-semibold uppercase tracking-wide">Preferences</p>
                   </div>
-                  <p className="text-secondary text-sm font-bold leading-normal bg-secondary/10 px-3 py-1 rounded-full">Step 1 of 4</p>
+                  <p className="text-secondary text-sm font-bold leading-normal bg-secondary/10 px-3 py-1 rounded-full">Step 3 of 4</p>
                 </div>
                 <div className="rounded-full bg-slate-200 dark:bg-slate-700 h-2 w-full overflow-hidden">
-                  <div className="h-full rounded-full bg-primary transition-all duration-500 ease-out" style={{ width: '25%' }}></div>
+                  <div className="h-full rounded-full bg-primary transition-all duration-500 ease-out" style={{ width: '75%' }}></div>
                 </div>
               </div>
             </div>
@@ -96,26 +96,27 @@ export default function WelcomePage() {
               
               {/* Headlines */}
               <h1 className="text-slate-900 dark:text-white text-3xl md:text-4xl font-black leading-tight tracking-tight mb-4 max-w-[500px]">
-                Unlock Your Creative Potential
+                Customize Your Experience
               </h1>
               <p className="text-slate-500 dark:text-slate-400 text-lg font-normal leading-relaxed max-w-[540px] mb-10">
-                Join thousands of creators turning their ideas into reality. Let's set up your workspace in just 4 simple steps to get you started on the right path.
+                We'll help you set up notifications, privacy settings, and other preferences to enhance your creative journey.
               </p>
               
               {/* Actions */}
               <div className="flex flex-col gap-4 w-full max-w-[320px]">
                 <button 
-                  onClick={handleStartOnboarding}
+                  onClick={handleContinue}
                   className="flex w-full cursor-pointer items-center justify-center rounded-xl h-12 px-6 bg-primary hover:bg-primary/90 text-white text-base font-bold leading-normal tracking-[0.015em] shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all duration-200"
                 >
-                  <span>Start Onboarding</span>
-                  <ChevronRight className="ml-2" size={20} />
+                  <span>Continue to Dashboard</span>
+                  <ArrowRight className="ml-2" size={20} />
                 </button>
                 <button 
-                  onClick={handleSkipOnboarding}
+                  onClick={handleBack}
                   className="flex w-full cursor-pointer items-center justify-center rounded-xl h-10 px-4 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 text-sm font-medium leading-normal hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
-                  <span className="truncate">Skip for now</span>
+                  <ArrowLeft className="mr-2" size={16} />
+                  <span className="truncate">Back to Niche</span>
                 </button>
               </div>
             </div>

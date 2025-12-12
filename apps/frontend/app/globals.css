@@ -6,6 +6,17 @@
  --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 214, 219, 220;
   --background-end-rgb: 255, 255, 255;
+  /* Custom color variables for Creator Mind */
+  --color-primary: #4461ee;
+  --color-secondary: #f72585;
+  --color-background-light: #f6f6f8;
+  --color-background-dark: #101322;
+  /* Light theme colors */
+  --background-light: #f6f6f8;
+  --text-light: #00000;
+  /* Dark theme colors */
+  --background-dark: #101322;
+  --text-dark: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -13,7 +24,22 @@
     --foreground-rgb: 255, 255, 255;
     --background-start-rgb: 0, 0, 0;
     --background-end-rgb: 0, 0, 0;
+    /* Dark mode overrides */
+    --color-background-light: #101322;
+    --color-background-dark: #101322;
   }
+}
+
+/* Explicit light theme class */
+.light {
+  --background-theme: var(--background-light);
+  --text-theme: var(--text-light);
+}
+
+/* Explicit dark theme class */
+.dark {
+  --background-theme: var(--background-dark);
+  --text-theme: var(--text-dark);
 }
 
 body {
