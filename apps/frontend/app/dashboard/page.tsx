@@ -9,7 +9,7 @@ import {
   LayoutDashboard,
   Video,
   MessageSquare,
- Shield,
+  Shield,
   BarChart3,
   Users,
   Heart,
@@ -20,19 +20,21 @@ import {
   Menu,
   Sparkles,
   SquarePlus,
-  Bot,
+ Bot,
   Eye,
   MessageCircle,
   Share,
   Edit,
   Verified,
- TrendingUp,
- Settings
+  TrendingUp,
+  Settings
 } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function DashboardPage() {
   const router = useRouter();
   const { theme } = useTheme();
+  const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Mock data for the dashboard
@@ -165,10 +167,10 @@ export default function DashboardPage() {
         
         {/* User Profile */}
         <div className="flex items-center gap-3 rounded-2xl border-slate-100 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50">
-          <div className="h-10 w-10 overflow-hidden rounded-full bg-slate-200 bg-cover bg-center" style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuC12DYAM_9gP7gHS4ToN5eL2AXb3aqerXqaurhCUNxYs0DsqHvaZUib7Y9FSuYSebzUykMHIcnmz7JgMRKqmqi_O4leGoB1Vw6S5aZGldCnrI4XGT8oU1jA420L_9Z-TReB_evqREb9OgNl6uHHo7BhK2DuIldR5cv5aETfGnGRHyE29w2BrL7ukZ9IYuoOQlK6dx2qFs7k9MUcKNOUQkSbjPkGNwZ3dFWZ-iWtTYkORRDPFx2BhkcNyEEesQ2v7-1N9KLdGMbYT3U')" }}>
+          <div className="h-10 w-10 overflow-hidden rounded-full bg-slate-200 bg-cover bg-center" style={{ backgroundImage: user?.photoURL ? `url("${user?.photoURL}")` : "url('https://lh3.googleusercontent.com/aida-public/AB6AXuC12DYAM_9gP7gHS4ToN5eL2AXb3aqerXqaurhCUNxYs0DsqHvaZUib7Y9FSuYSebzUykMHIcnmz7JgMRKqmqi_O4leGoB1Vw6S5aZGldCnrI4XGT8oU1jA420L_9Z-TReB_evqREb9OgNl6uHHo7BhK2DuIldR5cv5aETfGnGRHyE29w2BrL7ukZ9IYuoOQlK6dx2qFs7k9MUcKNOUQkSbjPkGNwZ3dFWZ-iWtTYkORRDPFx2BhkcNyEEesQ2v7-1N9KLdGMbYT3U')" }}>
           </div>
           <div className="flex flex-col">
-            <p className="text-sm font-bold text-slate-900 dark:text-white">Alex Morgan</p>
+            <p className="text-sm font-bold text-slate-900 dark:text-white">{user?.displayName || user?.email?.split('@')[0] || 'User'}</p>
             <p className="text-xs text-slate-500 dark:text-slate-400">Pro Creator</p>
           </div>
           <button className="ml-auto flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-white hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-white">
@@ -244,10 +246,10 @@ export default function DashboardPage() {
               </nav>
               
               <div className="flex items-center gap-3 rounded-2xl border-slate-100 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50">
-                <div className="h-10 w-10 overflow-hidden rounded-full bg-slate-200 bg-cover bg-center" style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuC12DYAM_9gP7gHS4ToN5eL2AXb3aqerXqaurhCUNxYs0DsqHvaZUib7Y9FSuYSebzUykMHIcnmz7JgMRKqmqi_O4leGoB1Vw6S5aZGldCnrI4XGT8oU1jA420L_9Z-TReB_evqREb9OgNl6uHHo7BhK2DuIldR5cv5aETfGnGRHyE29w2BrL7ukZ9IYuoOQlK6dx2qFs7k9MUcKNOUQkSbjPkGNwZ3dFWZ-iWtTYkORRDPFx2BhkcNyEEesQ2v7-1N9KLdGMbYT3U')" }}>
+                <div className="h-10 w-10 overflow-hidden rounded-full bg-slate-200 bg-cover bg-center" style={{ backgroundImage: user?.photoURL ? `url("${user?.photoURL}")` : "url('https://lh3.googleusercontent.com/aida-public/AB6AXuC12DYAM_9gP7gHS4ToN5eL2AXb3aqerXqaurhCUNxYs0DsqHvaZUib7Y9FSuYSebzUykMHIcnmz7JgMRKqmqi_O4leGoB1Vw6S5aZGldCnrI4XGT8oU1jA420L_9Z-TReB_evqREb9OgNl6uHHo7BhK2DuIldR5cv5aETfGnGRHyE29w2BrL7ukZ9IYuoOQlK6dx2qFs7k9MUcKNOUQkSbjPkGNwZ3dFWZ-iWtTYkORRDPFx2BhkcNyEEesQ2v7-1N9KLdGMbYT3U')" }}>
                 </div>
                 <div className="flex flex-col">
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">Alex Morgan</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">{user?.displayName || user?.email?.split('@')[0] || 'User'}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Pro Creator</p>
                 </div>
                 <button className="ml-auto flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-white hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-white">
