@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Sun, Moon, Mail, Lock, Eye, EyeOff, LogIn, Sparkles } from 'lucide-react';
 import { useTheme } from '../theme-provider';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -14,46 +15,80 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const { theme, setTheme } = useTheme();
  const router = useRouter();
+ const { signIn, completeEmailSignIn } = useAuth();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError('');
-
-    try {
-      // Mock authentication API call
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
-      
-      // Basic validation
-      if (!email || !password) {
-        throw new Error('Please enter both email and password');
+    // Check for email link sign-in
+    useEffect(() => {
+      // Check if this is an email link sign-in
+      if (typeof window !== 'undefined' && window.location.search.includes('oobCode')) {
+        const emailForSignIn = window.localStorage.getItem('emailForSignIn');
+        if (emailForSignIn) {
+          // This is an email link sign-in, handle it automatically
+          handleEmailLinkSignIn();
+        }
       }
+    }, []);
 
-      // Mock successful login (in a real app, this would be an API call)
-      if (email && password) {
-        // Store mock token or session
-        localStorage.setItem('authToken', 'mock-token-' + Date.now());
-        // Redirect to dashboard or home page
+    const handleEmailLinkSignIn = async () => {
+      try {
+        setIsLoading(true);
+        const emailForSignIn = window.localStorage.getItem('emailForSignIn');
+        
+        if (!emailForSignIn) {
+          throw new Error('Email not found in local storage. Please try signing up again.');
+        }
+
+        // Complete the sign-in process using the email link
+        await completeEmailSignIn(emailForSignIn);
+        
+        // Clear the stored email
+        window.localStorage.removeItem('emailForSignIn');
+        
+        // Redirect to the home page after successful verification
         router.push('/');
-      } else {
-        throw new Error('Invalid credentials');
+      } catch (err: any) {
+        setError(err.message || 'An error occurred during email verification');
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err: any) {
-      setError(err.message || 'An error occurred during login');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
 
-  // Mock Google login handler
-  const handleGoogleLogin = () => {
-    setIsLoading(true);
-    // Simulate Google OAuth redirect
-    setTimeout(() => {
-      localStorage.setItem('authToken', 'google-mock-token-' + Date.now());
-      router.push('/');
-    }, 1000);
-  };
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setIsLoading(true);
+      setError('');
+
+      try {
+        // Basic validation
+        if (!email || !password) {
+          throw new Error('Please enter both email and password');
+        }
+
+        // Firebase authentication
+        await signIn(email, password);
+        // Redirect to onboarding welcome page after successful login
+        router.push('/onboarding/welcome');
+      } catch (err: any) {
+        setError(err.message || 'An error occurred during login');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+  const { signInWithGoogle } = useAuth();
+ 
+    const handleGoogleLogin = async () => {
+      setIsLoading(true);
+      setError('');
+      try {
+        await signInWithGoogle();
+        router.push('/');
+      } catch (err: any) {
+        setError(err.message || 'An error occurred during Google login');
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
   return (
     <div className="font-display antialiased text-gray-900 min-h-screen flex flex-col">
@@ -211,9 +246,15 @@ export default function LoginPage() {
           </form>
           
           {/* Footer */}
-          <div className="mt-8 text-center text-sm text-[#616889]">
-            Don't have an account? 
-            <Link className="font-semibold text-primary hover:text-primary/80 hover:underline transition-all" href="/signup">Sign up</Link>
+          <div className="mt-6 text-center text-sm text-[#616889] space-y-2">
+            <div>
+              Don't have an account?
+              <Link className="font-semibold text-primary hover:text-primary/80 hover:underline transition-all" href="/signup">Sign up</Link>
+            </div>
+            <div>
+              Or verify with phone?
+              <Link className="font-semibold text-primary hover:text-primary/80 hover:underline transition-all" href="/verify-otp">Verify with OTP</Link>
+            </div>
           </div>
         </div>
         

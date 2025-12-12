@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Sun, Moon, Mail, Lock, Eye, EyeOff, UserPlus, Sparkles } from 'lucide-react';
 import { useTheme } from '../theme-provider';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -15,49 +16,56 @@ export default function SignupPage() {
   const [error, setError] = useState('');
   const { theme, setTheme } = useTheme();
   const router = useRouter();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError('');
-
-    // Basic validation
-    if (!email || !password || !confirmPassword) {
-      setError('Please fill in all fields');
-      setIsLoading(false);
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      // Mock signup API call
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
+     const { signUp } = useAuth();
+  
+     const handleSubmit = async (e: React.FormEvent) => {
+       e.preventDefault();
+       setIsLoading(true);
+       setError('');
       
-      // Mock successful signup
-      localStorage.setItem('authToken', 'mock-signup-token-' + Date.now());
-      // Redirect to dashboard or home page
-      router.push('/');
-    } catch (err: any) {
-      setError(err.message || 'An error occurred during signup');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+       // Basic validation
+       if (!email || !password || !confirmPassword) {
+         setError('Please fill in all fields');
+         setIsLoading(false);
+         return;
+       }
+      
+       if (password !== confirmPassword) {
+         setError('Passwords do not match');
+         setIsLoading(false);
+         return;
+       }
+      
+       try {
+                 // First create the user account
+                 await signUp(email, password);
+                 
+                 // Store the email in localStorage for the verification page
+                 window.localStorage.setItem('emailForSignIn', email);
+                 
+                 // After email verification, user will be redirected to welcome page
+                 router.push(`/verify-email-otp?email=${encodeURIComponent(email)}`);
+               } catch (err: any) {
+                 setError(err.message || 'An error occurred during signup');
+               } finally {
+                 setIsLoading(false);
+               }
+             };
 
-  // Mock Google signup handler
-  const handleGoogleSignup = () => {
-    setIsLoading(true);
-    // Simulate Google OAuth redirect
-    setTimeout(() => {
-      localStorage.setItem('authToken', 'google-signup-mock-token-' + Date.now());
-      router.push('/');
-    }, 10);
-  };
+  const { signInWithGoogle } = useAuth();
+ 
+    const handleGoogleSignup = async () => {
+      setIsLoading(true);
+      setError('');
+      try {
+        await signInWithGoogle();
+        router.push('/onboarding/welcome');
+      } catch (err: any) {
+        setError(err.message || 'An error occurred during Google signup');
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
   return (
     <div className="font-display antialiased text-gray-900 min-h-screen flex flex-col">
@@ -231,9 +239,15 @@ export default function SignupPage() {
           </form>
           
           {/* Footer */}
-          <div className="mt-8 text-center text-sm text-[#616889]">
-            Already have an account? 
-            <Link className="font-semibold text-primary hover:text-primary/80 hover:underline transition-all" href="/login">Sign in</Link>
+          <div className="mt-6 text-center text-sm text-[#616889] space-y-2">
+            <div>
+              Already have an account?
+              <Link className="font-semibold text-primary hover:text-primary/80 hover:underline transition-all" href="/login">Sign in</Link>
+            </div>
+            <div>
+              Or verify with phone?
+              <Link className="font-semibold text-primary hover:text-primary/80 hover:underline transition-all" href="/verify-otp">Verify with OTP</Link>
+            </div>
           </div>
         </div>
         
