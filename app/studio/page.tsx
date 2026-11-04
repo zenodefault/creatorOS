@@ -266,10 +266,10 @@ export default function StudioPage() {
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className="w-4 h-4 text-slate-400 dark:text-slate-500"
+                      className="w-4 h-4"
                       viewBox="0 0 24 24"
                     >
-                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M10 7a2 2 0 012 2h2a2 2 0 012-2v-2M10 15a2 2 0 012 2h4a2 2 0 012-2v-2M14 5a2 2 0 012 2h2a2 2 0 012-2v-2M10 3v2m3.3-3.3L21 6" />
+                      <path d="M16 16l2-2m-4 4l2-2m8 2l2-2m-4-4l2-2m2 4l2-2" fill="none" stroke="currentColor" strokeWidth={1.5} />
                     </svg>
                     Upload media (image/video)
                   </input>
@@ -327,7 +327,8 @@ export default function StudioPage() {
                             <CalendarClock className="w-3 h-3" />
                             {formatDraftTime(draft.scheduledFor)}
                           </span>
-                        )}
+                        )
+                        }
                       </div>
                       <p className="truncate font-semibold">{draft.title}</p>
                       {draft.body && (
@@ -352,7 +353,7 @@ export default function StudioPage() {
                       {draft.status === 'draft' && (
                         <button
                           type="button"
-                          onClick={() => mutate(draft, { status: 'scheduled' }, `“${draft.title}” scheduled.`)}
+                          onClick={() => mutate(draft, { status: 'scheduled' }, `“${draft.title}” scheduled.`) }
                           disabled={busy}
                           aria-label={`Schedule ${draft.title}`}
                           className="flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/20 disabled:opacity-60"
