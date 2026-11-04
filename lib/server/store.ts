@@ -361,17 +361,15 @@ const SERIES_SOURCE: Record<SeriesMetric, EventType> = {
   protected: 'asset_protected',
 };
 
-export function getAnalytics(uid: string, days: number): AnalyticsSummary {
+export function getAnalytics(uid: string, days: number, platform?: 'all' | 'bluesky'): AnalyticsSummary {
   const db = getDb();
   const dates = dayKeys(days);
   const since = `${dates[0]}T00:00:00.000Z`;
 
+  const eventWhere = platform === 'all' ? '' : `AND platform = '${platform}'`;
   const grouped = db
     .prepare(
-      `SELECT substr(created_at, 1, 10) AS day, type, COUNT(*) AS total
-       FROM events
-       WHERE uid = ? AND created_at >= ?
-       GROUP BY day, type`,
+      `SELECT substr(created_at, 1, 10) AS day, type, COUNT(*) AS total\n       FROM events\n       WHERE uid = ? AND created_at >= ? ${eventWhere}\n       GROUP BY day, type`,
     )
     .all(uid, since) as Row[];
 

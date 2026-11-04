@@ -1,32 +1,42 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import { Activity, BarChart3, CalendarClock, CheckCircle2, Link2, ShieldCheck } from 'lucide-react';
+import { useState } from 'react'
+import { Activity, BarChart3, CalendarClock, CheckCircle2, Link2, ShieldCheck } from 'lucide-react'
 
-import { AppShell } from '../../components/AppShell';
-import { useApiData } from '../../hooks/useApiData';
-import { buildSeriesPath, formatDay, formatRelative } from '../../lib/format';
-import type { AnalyticsSummary, SeriesMetric } from '../../lib/types';
+import { AppShell } from '../../components/AppShell'
+import { useApiData } from '../../hooks/useApiData'
+import { buildSeriesPath, formatDay, formatRelative } from '../../lib/format'
+import type { AnalyticsSummary, SeriesMetric } from '../../lib/types'
 
-const RANGES = [7, 30, 90];
+const RANGES = [7, 30, 90]
 
 const METRICS: { key: SeriesMetric; label: string }[] = [
   { key: 'published', label: 'Published' },
   { key: 'scheduled', label: 'Scheduled' },
   { key: 'protected', label: 'Protected' },
-];
+]
+
+export const PLATFORM_OPTIONS = [
+  { key: 'all', label: 'All Platforms' },
+  { key: 'bluesky', label: 'Bluesky' },
+  { key: 'youtube', label: 'YouTube' },
+  { key: 'instagram', label: 'Instagram' },
+  { key: 'tiktok', label: 'TikTok' },
+  { key: 'linkedin', label: 'LinkedIn' },
+]
 
 export default function AnalyticsPage() {
-  const [days, setDays] = useState(30);
-  const [metric, setMetric] = useState<SeriesMetric>('published');
+  const [days, setDays] = useState(30)
+  const [metric, setMetric] = useState<SeriesMetric>('published')
+  const [platform, setPlatform] = useState<'all' | 'bluesky' | 'youtube' | 'instagram' | 'tiktok' | 'linkedin'>('all')
 
-  const { data, error, loading } = useApiData<AnalyticsSummary>(`/api/analytics?days=${days}`);
+  const { data, error, loading } = useApiData<AnalyticsSummary>(`/api/analytics?days=${days}&platform=${platform}`)
 
-  const series = data?.series[metric] ?? [];
-  const total = series.reduce((sum, value) => sum + value, 0);
-  const peak = series.length > 0 ? Math.max(...series) : 0;
-  const peakIndex = series.indexOf(peak);
-  const maxPlatformPosts = Math.max(1, ...(data?.platforms.map((entry) => entry.posts) ?? [1]));
+  const series = data?.series[metric] ?? []
+  const total = series.reduce((sum, value) => sum + value, 0)
+  const peak = series.length > 0 ? Math.max(...series) : 0
+  const peakIndex = series.indexOf(peak)
+  const maxPlatformPosts = Math.max(1, ...(data?.platforms.map((entry) => entry.posts) ?? [1]))
 
   return (
     <AppShell active="analytics">
@@ -54,6 +64,24 @@ export default function AnalyticsPage() {
                   }
                 >
                   {option}d
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-2" role="group" aria-label="Platform">
+              {PLATFORM_OPTIONS.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setPlatform(option.key as 'all' | 'bluesky' | 'youtube' | 'instagram' | 'tiktok' | 'linkedin')}
+                  aria-pressed={platform === option.key}
+                  className={
+                    platform === option.key
+                      ? 'rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white'
+                      : 'rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                  }
+                >
+                  {option.label}
                 </button>
               ))}
             </div>
@@ -120,7 +148,7 @@ export default function AnalyticsPage() {
                     </linearGradient>
                   </defs>
                   <line className="dark:stroke-slate-700" stroke="#e2e8f0" strokeWidth="1" x1="0" x2="500" y1="140" y2="140" />
-                  <line className="dark:stroke-slate-700" stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth="1" x1="0" x2="500" y1="70" y2="70" />
+                  <line className="dark:stroke-slate-700" strokeDasharray="4 4" strokeWidth="1" x1="0" x2="500" y1="70" y2="70" />
                   <path d={`${buildSeriesPath(series)} L500 140 L0 140 Z`} fill="url(#analyticsGradient)" stroke="none" />
                   <path
                     d={buildSeriesPath(series)}
@@ -180,6 +208,23 @@ export default function AnalyticsPage() {
                   )}
                 </div>
               )}
+
+              <div className="mt-4 flex gap-2">
+                {PLATFORM_OPTIONS.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setPlatform(option.key as 'all' | 'bluesky' | 'youtube' | 'instagram' | 'tiktok' | 'linkedin')}
+                    className={
+                      platform === option.key
+                        ? 'rounded-lg bg-primary px-3 py-1 text-xs font-semibold text-white'
+                        : 'rounded-lg border border-slate-300 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:bg-slate-800/60'
+                    }
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="flex flex-col gap-4 rounded-2xl bg-surface-light p-6 shadow-soft ring-1 ring-slate-900/5 dark:bg-surface-dark dark:ring-white/10">
@@ -223,5 +268,5 @@ export default function AnalyticsPage() {
         </div>
       </div>
     </AppShell>
-  );
+  )
 }
