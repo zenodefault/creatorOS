@@ -1,40 +1,61 @@
 type BlueskySession = {
-  accessJwt?: unknown;
-  did?: unknown;
+  accessJwt?: string;
+  did?: string;
 };
 
 export class BlueskyUnavailableError extends Error {}
 
 const DEFAULT_SERVICE = 'https://bsky.social';
 const MAX_POST_LENGTH = 300;
+const MAX_BLOB_SIZE = 50 * 1024 * 1024; // 50MB
 
 function postText(title: string, body: string): string {
   const text = body.trim() || title.trim();
   if (Array.from(text).length > MAX_POST_LENGTH) {
     throw new BlueskyUnavailableError(`Bluesky posts are limited to ${MAX_POST_LENGTH} characters.`);
   }
-
   return text;
 }
 
-async function blueskyRequest(url: string, body: Record<string, unknown>, accessJwt?: string): Promise<Response> {
-  try {
-    return await fetch(url, {
+/** Upload a blob (image or video) to Bluesky and return the blob reference. */
+export async function uploadBlobs(
+  serviceUrl: URL,
+  accessJwt: string,
+  file: File
+): Promise<{ blob: string; mimeType: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('type', file.type);
+
+  const response = await fetch(
+    new URL('/xrpc/com.atproto.repo.uploadBlob', serviceUrl).toString(),
+    {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(accessJwt ? { Authorization: `Bearer ${accessJwt}` } : {}),
-      },
-      body: JSON.stringify(body),
-      cache: 'no-store',
-    });
-  } catch {
-    throw new BlueskyUnavailableError('Could not reach Bluesky. Check your connection and try again.');
+      body: formData,
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[bluesky] Blob upload failed:', response.status, errorText);
+    throw new BlueskyUnavailableError(
+      `Bluesky blob upload failed (${response.status}). Please try again.`
+    );
   }
+
+  const result = (await response.json()) as { $type?: string; $link?: string; mimeType?: string };
+  return {
+    blob: result.$link || '',
+    mimeType: result.mimeType || file.type,
+  };
 }
 
-/** Publishes one text post using a Bluesky handle and app password held only in server environment variables. */
-export async function publishToBluesky(title: string, body: string): Promise<void> {
+/** Publishes a post to Bluesky, optionally with an image or video attachment. */
+export async function publishToBluesky(
+  title: string,
+  body: string,
+  media?: File
+): Promise<void> {
   const configuredHandle = process.env.BSKY_HANDLE;
   const identifier = configuredHandle?.replace(/^@/, '');
   const password = process.env.BSKY_APP_PASSWORD;
@@ -54,9 +75,16 @@ export async function publishToBluesky(title: string, body: string): Promise<voi
     throw new BlueskyUnavailableError('The configured Bluesky service URL is invalid.');
   }
 
-  const sessionResponse = await blueskyRequest(
+  // Step 1: Create session
+  const sessionResponse = await fetch(
     new URL('/xrpc/com.atproto.server.createSession', serviceUrl).toString(),
-    { identifier, password },
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ identifier, password }),
+    }
   );
   const session = (await sessionResponse.json().catch(() => null)) as BlueskySession | null;
 
@@ -69,18 +97,54 @@ export async function publishToBluesky(title: string, body: string): Promise<voi
     );
   }
 
-  const response = await blueskyRequest(
+  // Step 2: Upload media if provided
+  let blobRef: string = '';
+  if (media) {
+    if (media.size > MAX_BLOB_SIZE) {
+      throw new BlueskyUnavailableError(`File is too large (${Math.round(media.size / 1024 / 1024)}MB). Bluesky supports up to 50MB.`);
+    }
+    const uploadResult = await uploadBlobs(serviceUrl, session.accessJwt, media);
+    blobRef = uploadResult.blob;
+  }
+
+  // Step 3: Create the post
+  const text = postText(title, body);
+
+  const recordBody = {
+    $type: 'app.bsky.feed.post',
+    text,
+    createdAt: new Date().toISOString(),
+  } as const;
+
+  // Add embed if we have a blob (image/video)
+  if (blobRef) {
+    const mimeType = media?.type || '';
+    if (mimeType.startsWith('image/')) {
+      ;(recordBody as any).embed = {
+        $type: 'app.bsky.embed.images',
+        image: blobRef,
+        alt: { encoding: 'plain', text: title || 'Image' },
+      };
+    } else if (mimeType.startsWith('video/')) {
+      ;(recordBody as any).embed = {
+        $type: 'app.bsky.embed.video',
+        video: blobRef,
+        thumbnail: blobRef,
+        aspectRatio: { width: 16, height: 9 },
+      };
+    }
+  }
+
+  const response = await fetch(
     new URL('/xrpc/com.atproto.repo.createRecord', serviceUrl).toString(),
     {
-      repo: session.did,
-      collection: 'app.bsky.feed.post',
-      record: {
-        $type: 'app.bsky.feed.post',
-        text: postText(title, body),
-        createdAt: new Date().toISOString(),
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.accessJwt}`,
       },
-    },
-    session.accessJwt,
+      body: JSON.stringify(recordBody),
+    }
   );
 
   if (!response.ok) {

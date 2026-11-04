@@ -64,6 +64,7 @@ function toDraft(row: Row): Draft {
     publishedAt: nullableText(row.published_at),
     createdAt: text(row.created_at),
     updatedAt: text(row.updated_at),
+    media: row.media as File | null,
   };
 }
 

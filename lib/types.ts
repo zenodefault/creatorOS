@@ -14,6 +14,7 @@ export type Draft = {
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  media: File | null;
 };
 
 export type DraftInput = {
