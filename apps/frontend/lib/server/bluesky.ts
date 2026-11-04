@@ -79,19 +79,20 @@ async function createSession(base: URL): Promise<{ accessJwt: string; did: strin
 }
 
 async function uploadBlob(base: URL, accessJwt: string, media: BlueskyMedia): Promise<BlueskyBlob> {
-  // Copy into a plain ArrayBuffer so the Blob constructor accepts the bytes.
+  // uploadBlob takes the raw file bytes: the request Content-Type declares the blob's type.
+  // Sending multipart instead stores a multipart/form-data blob, which the embed rejects.
   const bytes = new Uint8Array(media.bytes.byteLength);
   bytes.set(media.bytes);
-
-  const form = new FormData();
-  form.append('file', new Blob([bytes.buffer], { type: media.mimeType }), media.filename);
 
   let response: Response;
   try {
     response = await fetch(new URL('/xrpc/com.atproto.repo.uploadBlob', base), {
       method: 'POST',
-      headers: { Authorization: `Bearer ${accessJwt}` },
-      body: form,
+      headers: {
+        Authorization: `Bearer ${accessJwt}`,
+        'Content-Type': media.mimeType,
+      },
+      body: bytes.buffer,
       cache: 'no-store',
     });
   } catch {
