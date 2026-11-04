@@ -3,11 +3,23 @@ type BlueskySession = {
   did?: string;
 };
 
+type BlueskyBlob = {
+  $type?: string;
+  ref?: { $link?: string };
+  mimeType?: string;
+  size?: number;
+};
+
+export type BlueskyMedia = {
+  bytes: Uint8Array;
+  mimeType: string;
+  filename: string;
+};
+
 export class BlueskyUnavailableError extends Error {}
 
 const DEFAULT_SERVICE = 'https://bsky.social';
 const MAX_POST_LENGTH = 300;
-const MAX_BLOB_SIZE = 50 * 1024 * 1024; // 50MB
 
 function postText(title: string, body: string): string {
   const text = body.trim() || title.trim();
@@ -17,49 +29,22 @@ function postText(title: string, body: string): string {
   return text;
 }
 
-/** Upload a blob (image or video) to Bluesky and return the blob reference. */
-export async function uploadBlobs(
-  serviceUrl: URL,
-  accessJwt: string,
-  file: File
-): Promise<{ blob: string; mimeType: string }> {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('type', file.type);
+function serviceUrl(): URL {
+  const service = process.env.BSKY_SERVICE ?? DEFAULT_SERVICE;
 
-  const response = await fetch(
-    new URL('/xrpc/com.atproto.repo.uploadBlob', serviceUrl).toString(),
-    {
-      method: 'POST',
-      body: formData,
-    }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('[bluesky] Blob upload failed:', response.status, errorText);
-    throw new BlueskyUnavailableError(
-      `Bluesky blob upload failed (${response.status}). Please try again.`
-    );
+  try {
+    const url = new URL(service);
+    if (url.protocol !== 'https:') throw new Error('Bluesky service must use HTTPS.');
+    return url;
+  } catch {
+    throw new BlueskyUnavailableError('The configured Bluesky service URL is invalid.');
   }
-
-  const result = (await response.json()) as { $type?: string; $link?: string; mimeType?: string };
-  return {
-    blob: result.$link || '',
-    mimeType: result.mimeType || file.type,
-  };
 }
 
-/** Publishes a post to Bluesky, optionally with an image or video attachment. */
-export async function publishToBluesky(
-  title: string,
-  body: string,
-  media?: File
-): Promise<void> {
+async function createSession(base: URL): Promise<{ accessJwt: string; did: string }> {
   const configuredHandle = process.env.BSKY_HANDLE;
   const identifier = configuredHandle?.replace(/^@/, '');
   const password = process.env.BSKY_APP_PASSWORD;
-  const service = process.env.BSKY_SERVICE ?? DEFAULT_SERVICE;
 
   if (!identifier || !password) {
     throw new BlueskyUnavailableError(
@@ -67,85 +52,116 @@ export async function publishToBluesky(
     );
   }
 
-  let serviceUrl: URL;
+  let response: Response;
   try {
-    serviceUrl = new URL(service);
-    if (serviceUrl.protocol !== 'https:') throw new Error('Bluesky service must use HTTPS.');
+    response = await fetch(new URL('/xrpc/com.atproto.server.createSession', base), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, password }),
+      cache: 'no-store',
+    });
   } catch {
-    throw new BlueskyUnavailableError('The configured Bluesky service URL is invalid.');
+    throw new BlueskyUnavailableError('Could not reach Bluesky. Check your connection and try again.');
   }
 
-  // Step 1: Create session
-  const sessionResponse = await fetch(
-    new URL('/xrpc/com.atproto.server.createSession', serviceUrl).toString(),
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ identifier, password }),
-    }
-  );
-  const session = (await sessionResponse.json().catch(() => null)) as BlueskySession | null;
+  const session = (await response.json().catch(() => null)) as BlueskySession | null;
 
-  if (!sessionResponse.ok || typeof session?.accessJwt !== 'string' || typeof session.did !== 'string') {
-    console.error('[bluesky] Could not create a publishing session:', sessionResponse.status);
+  if (!response.ok || typeof session?.accessJwt !== 'string' || typeof session.did !== 'string') {
+    console.error('[bluesky] Could not create a publishing session:', response.status);
     throw new BlueskyUnavailableError(
-      sessionResponse.status === 401 || sessionResponse.status === 403
+      response.status === 401 || response.status === 403
         ? 'Bluesky rejected the configured handle or app password. Check BSKY_HANDLE and BSKY_APP_PASSWORD.'
         : 'Bluesky could not start a publishing session. Please try again.',
     );
   }
 
-  // Step 2: Upload media if provided
-  let blobRef: string = '';
-  if (media) {
-    if (media.size > MAX_BLOB_SIZE) {
-      throw new BlueskyUnavailableError(`File is too large (${Math.round(media.size / 1024 / 1024)}MB). Bluesky supports up to 50MB.`);
-    }
-    const uploadResult = await uploadBlobs(serviceUrl, session.accessJwt, media);
-    blobRef = uploadResult.blob;
+  return { accessJwt: session.accessJwt, did: session.did };
+}
+
+async function uploadBlob(base: URL, accessJwt: string, media: BlueskyMedia): Promise<BlueskyBlob> {
+  // Copy into a plain ArrayBuffer so the Blob constructor accepts the bytes.
+  const bytes = new Uint8Array(media.bytes.byteLength);
+  bytes.set(media.bytes);
+
+  const form = new FormData();
+  form.append('file', new Blob([bytes.buffer], { type: media.mimeType }), media.filename);
+
+  let response: Response;
+  try {
+    response = await fetch(new URL('/xrpc/com.atproto.repo.uploadBlob', base), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessJwt}` },
+      body: form,
+      cache: 'no-store',
+    });
+  } catch {
+    throw new BlueskyUnavailableError('Could not upload the media to Bluesky. Please try again.');
   }
 
-  // Step 3: Create the post
+  if (!response.ok) {
+    console.error('[bluesky] Blob upload failed:', response.status);
+    throw new BlueskyUnavailableError(
+      response.status === 413
+        ? 'Bluesky rejected that file because it is too large.'
+        : 'Bluesky could not accept that file. Try a smaller image or video.',
+    );
+  }
+
+  const payload = (await response.json().catch(() => null)) as { blob?: BlueskyBlob } | null;
+  if (!payload?.blob?.ref?.$link) {
+    throw new BlueskyUnavailableError('Bluesky did not return a usable reference for that file.');
+  }
+
+  return payload.blob;
+}
+
+/** Publishes one post using a Bluesky handle and app password held only in server environment variables. */
+export async function publishToBluesky(
+  title: string,
+  body: string,
+  media?: BlueskyMedia | null,
+): Promise<void> {
+  const base = serviceUrl();
+  const session = await createSession(base);
   const text = postText(title, body);
 
-  const recordBody = {
+  const record: Record<string, unknown> = {
     $type: 'app.bsky.feed.post',
     text,
     createdAt: new Date().toISOString(),
-  } as const;
+  };
 
-  // Add embed if we have a blob (image/video)
-  if (blobRef) {
-    const mimeType = media?.type || '';
-    if (mimeType.startsWith('image/')) {
-      ;(recordBody as any).embed = {
+  if (media) {
+    const blob = await uploadBlob(base, session.accessJwt, media);
+
+    if (media.mimeType.startsWith('image/')) {
+      record.embed = {
         $type: 'app.bsky.embed.images',
-        image: blobRef,
-        alt: { encoding: 'plain', text: title || 'Image' },
+        images: [{ image: blob, alt: title.trim().slice(0, 2000) }],
       };
-    } else if (mimeType.startsWith('video/')) {
-      ;(recordBody as any).embed = {
-        $type: 'app.bsky.embed.video',
-        video: blobRef,
-        thumbnail: blobRef,
-        aspectRatio: { width: 16, height: 9 },
-      };
+    } else if (media.mimeType.startsWith('video/')) {
+      record.embed = { $type: 'app.bsky.embed.video', video: blob };
     }
   }
 
-  const response = await fetch(
-    new URL('/xrpc/com.atproto.repo.createRecord', serviceUrl).toString(),
-    {
+  let response: Response;
+  try {
+    response = await fetch(new URL('/xrpc/com.atproto.repo.createRecord', base), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${session.accessJwt}`,
       },
-      body: JSON.stringify(recordBody),
-    }
-  );
+      body: JSON.stringify({
+        repo: session.did,
+        collection: 'app.bsky.feed.post',
+        record,
+      }),
+      cache: 'no-store',
+    });
+  } catch {
+    throw new BlueskyUnavailableError('Could not reach Bluesky. Check your connection and try again.');
+  }
 
   if (!response.ok) {
     console.error('[bluesky] Publishing request failed:', response.status);

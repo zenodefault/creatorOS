@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { ensureUser, getDb, nowIso } from './db';
+import type { StoredMedia } from './media';
 import {
   PLATFORMS,
   type ActivityEvent,
@@ -54,6 +55,8 @@ function toEventType(value: unknown): EventType {
 }
 
 function toDraft(row: Row): Draft {
+  const mediaPath = nullableText(row.media_path);
+
   return {
     id: text(row.id),
     title: text(row.title),
@@ -64,6 +67,13 @@ function toDraft(row: Row): Draft {
     publishedAt: nullableText(row.published_at),
     createdAt: text(row.created_at),
     updatedAt: text(row.updated_at),
+    media: mediaPath
+      ? {
+          name: text(row.media_name, 'upload'),
+          type: text(row.media_type),
+          sizeBytes: number(row.media_size),
+        }
+      : null,
   };
 }
 
@@ -201,7 +211,32 @@ export function getDraft(uid: string, id: string): Draft | null {
   return row ? toDraft(row) : null;
 }
 
-export function createDraft(uid: string, input: DraftInput): Draft {
+/** The on-disk media attached to a draft, when it has one. */
+export function getDraftMedia(uid: string, id: string): { path: string; type: string; name: string } | null {
+  const row = getDb()
+    .prepare('SELECT media_path, media_type, media_name FROM drafts WHERE uid = ? AND id = ?')
+    .get(uid, id) as Row | undefined;
+
+  const filePath = nullableText(row?.media_path);
+  if (!filePath) return null;
+
+  return { path: filePath, type: text(row?.media_type), name: text(row?.media_name, 'upload') };
+}
+
+export function attachDraftMedia(uid: string, id: string, media: StoredMedia): Draft | null {
+  const result = getDb()
+    .prepare(
+      `UPDATE drafts
+       SET media_path = ?, media_name = ?, media_type = ?, media_size = ?, updated_at = ?
+       WHERE uid = ? AND id = ?`,
+    )
+    .run(media.path, media.name, media.type, media.sizeBytes, nowIso(), uid, id);
+
+  if (number(result.changes) === 0) return null;
+  return getDraft(uid, id);
+}
+
+export function createDraft(uid: string, input: DraftInput, media?: StoredMedia | null): Draft {
   const db = getDb();
   const timestamp = nowIso();
   const id = randomUUID();
@@ -209,8 +244,10 @@ export function createDraft(uid: string, input: DraftInput): Draft {
   const scheduledFor = nullableText(input.scheduledFor);
 
   db.prepare(
-    `INSERT INTO drafts (id, uid, title, body, platform, status, scheduled_for, published_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO drafts
+       (id, uid, title, body, platform, status, scheduled_for, published_at, created_at, updated_at,
+        media_path, media_name, media_type, media_size)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     uid,
@@ -222,6 +259,10 @@ export function createDraft(uid: string, input: DraftInput): Draft {
     status === 'published' ? timestamp : null,
     timestamp,
     timestamp,
+    media?.path ?? null,
+    media?.name ?? null,
+    media?.type ?? null,
+    media?.sizeBytes ?? 0,
   );
 
   const draft = getDraft(uid, id)!;
@@ -361,17 +402,25 @@ const SERIES_SOURCE: Record<SeriesMetric, EventType> = {
   protected: 'asset_protected',
 };
 
-export function getAnalytics(uid: string, days: number, platform?: 'all' | 'bluesky'): AnalyticsSummary {
+export function getAnalytics(uid: string, days: number, platform?: string): AnalyticsSummary {
   const db = getDb();
   const dates = dayKeys(days);
   const since = `${dates[0]}T00:00:00.000Z`;
 
-  const eventWhere = platform === 'all' ? '' : `AND platform = '${platform}'`;
+  const scopedPlatform = PLATFORMS.find(
+    (candidate) => candidate.toLowerCase() === (platform ?? 'all').toLowerCase(),
+  );
+  const eventWhere = scopedPlatform ? 'AND platform = ?' : '';
+  const eventParams: unknown[] = scopedPlatform ? [uid, since, scopedPlatform] : [uid, since];
+
   const grouped = db
     .prepare(
-      `SELECT substr(created_at, 1, 10) AS day, type, COUNT(*) AS total\n       FROM events\n       WHERE uid = ? AND created_at >= ? ${eventWhere}\n       GROUP BY day, type`,
+      `SELECT substr(created_at, 1, 10) AS day, type, COUNT(*) AS total
+       FROM events
+       WHERE uid = ? AND created_at >= ? ${eventWhere}
+       GROUP BY day, type`,
     )
-    .all(uid, since) as Row[];
+    .all(...(eventParams as never[])) as Row[];
 
   const series: Record<SeriesMetric, number[]> = {
     published: Array(days).fill(0),
@@ -416,14 +465,14 @@ export function getAnalytics(uid: string, days: number, platform?: 'all' | 'blue
   const channelRows = db.prepare('SELECT platform, connected FROM channels WHERE uid = ?').all(uid) as Row[];
   const channels = toChannels(channelRows);
 
-  const platforms: PlatformBreakdown[] = PLATFORMS.map((platform) => {
-    const row = platformRows.find((candidate) => candidate.platform === platform);
+  const platforms: PlatformBreakdown[] = PLATFORMS.map((entry) => {
+    const row = platformRows.find((candidate) => candidate.platform === entry);
 
     return {
-      platform,
+      platform: entry,
       posts: number(row?.posts),
       published: number(row?.published),
-      connected: channels[platform],
+      connected: channels[entry],
     };
   });
 
@@ -448,7 +497,7 @@ export function getAnalytics(uid: string, days: number, platform?: 'all' | 'blue
     scheduled: number(draftTotals?.scheduled),
     published: number(draftTotals?.published),
     protectedAssets: count('SELECT COUNT(*) AS total FROM fingerprints WHERE uid = ?', [uid]),
-    connectedChannels: PLATFORMS.filter((platform) => channels[platform]).length,
+    connectedChannels: PLATFORMS.filter((entry) => channels[entry]).length,
     assistantMessages: count(
       'SELECT COUNT(*) AS total FROM assistant_messages WHERE uid = ? AND role = ?',
       [uid, 'user'],

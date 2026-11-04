@@ -24,14 +24,7 @@ async function authorizationHeaders(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${token}` };
 }
 
-export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(await authorizationHeaders()),
-    ...((init.headers as Record<string, string>) ?? {}),
-  };
-
-  const response = await fetch(path, { ...init, headers, cache: 'no-store' });
+async function readResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => null);
 
   if (!response.ok) {
@@ -46,6 +39,17 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   return payload as T;
 }
 
+export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(await authorizationHeaders()),
+    ...((init.headers as Record<string, string>) ?? {}),
+  };
+
+  const response = await fetch(path, { ...init, headers, cache: 'no-store' });
+  return readResponse<T>(response);
+}
+
 export function apiGet<T>(path: string): Promise<T> {
   return apiFetch<T>(path);
 }
@@ -55,4 +59,20 @@ export function apiSend<T>(path: string, method: 'POST' | 'PATCH' | 'DELETE', bo
     method,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+}
+
+/** Multipart uploads must not set Content-Type so the browser adds the boundary. */
+export async function apiSendForm<T>(
+  path: string,
+  method: 'POST' | 'PATCH',
+  form: FormData,
+): Promise<T> {
+  const response = await fetch(path, {
+    method,
+    body: form,
+    headers: await authorizationHeaders(),
+    cache: 'no-store',
+  });
+
+  return readResponse<T>(response);
 }

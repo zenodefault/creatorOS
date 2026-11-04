@@ -4,6 +4,12 @@ export const PLATFORMS: Platform[] = ['YouTube', 'Instagram', 'TikTok', 'LinkedI
 
 export type DraftStatus = 'draft' | 'scheduled' | 'published';
 
+export type DraftMedia = {
+  name: string;
+  type: string;
+  sizeBytes: number;
+};
+
 export type Draft = {
   id: string;
   title: string;
@@ -14,6 +20,7 @@ export type Draft = {
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  media: DraftMedia | null;
 };
 
 export type DraftInput = {

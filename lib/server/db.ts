@@ -43,7 +43,11 @@ CREATE TABLE IF NOT EXISTS drafts (
   scheduled_for TEXT,
   published_at  TEXT,
   created_at    TEXT NOT NULL,
-  updated_at    TEXT NOT NULL
+  updated_at    TEXT NOT NULL,
+  media_path    TEXT,
+  media_name    TEXT,
+  media_type    TEXT,
+  media_size    INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS drafts_uid_created ON drafts (uid, created_at DESC);
@@ -87,6 +91,14 @@ CREATE TABLE IF NOT EXISTS email_codes (
 );
 `;
 
+/** Columns added after the first release, applied to databases that predate them. */
+const ADDED_DRAFT_COLUMNS: { name: string; definition: string }[] = [
+  { name: 'media_path', definition: 'TEXT' },
+  { name: 'media_name', definition: 'TEXT' },
+  { name: 'media_type', definition: 'TEXT' },
+  { name: 'media_size', definition: 'INTEGER NOT NULL DEFAULT 0' },
+];
+
 const globalForDb = globalThis as unknown as { __creatorOsDb?: DatabaseSync };
 
 export function databaseFile(): string {
@@ -94,6 +106,16 @@ export function databaseFile(): string {
   if (configured) return path.resolve(configured);
 
   return path.join(process.cwd(), '.data', 'creatoros.db');
+}
+
+function migrate(db: DatabaseSync): void {
+  const columns = db.prepare('PRAGMA table_info(drafts)').all() as { name?: unknown }[];
+  const existing = new Set(columns.map((column) => String(column.name ?? '')));
+
+  for (const column of ADDED_DRAFT_COLUMNS) {
+    if (existing.has(column.name)) continue;
+    db.exec(`ALTER TABLE drafts ADD COLUMN ${column.name} ${column.definition}`);
+  }
 }
 
 export function getDb(): DatabaseSync {
@@ -106,6 +128,7 @@ export function getDb(): DatabaseSync {
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec('PRAGMA foreign_keys = ON;');
   db.exec(SCHEMA);
+  migrate(db);
 
   globalForDb.__creatorOsDb = db;
   return db;

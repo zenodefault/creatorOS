@@ -1,0 +1,11 @@
+npm notice run frontend@0.1.0 npx
+npm notice run 'next' dev --port 3000
+   ▲ Next.js 14.0.4
+   - Local:        http://localhost:3000
+   - Environments: .env.local
+
+ ✓ Ready in 1430ms
+ ○ Compiling /studio ...
+ ✓ Compiled /studio in 1303ms (564 modules)
+ ✓ Compiled in 264ms (290 modules)
+[?25h

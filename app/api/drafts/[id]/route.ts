@@ -1,111 +1,133 @@
-import type { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server';
 
-import { badRequest, json, notFound, readJson, serverError, unauthorized } from '../../../../lib/server/api'
-import { requireUser } from '../../../../lib/server/auth'
-import { BlueskyUnavailableError, publishToBluesky } from '../../../../lib/server/bluesky'
-import { deleteDraft, getDraft, updateDraft } from '../../../../lib/server/store'
-import { PLATFORMS, type Draft, type Platform, type DraftInput } from '../../../../lib/types'
+import { badRequest, json, notFound, readJson, serverError, unauthorized } from '../../../../lib/server/api';
+import { requireUser } from '../../../../lib/server/auth';
+import { BlueskyUnavailableError, publishToBluesky } from '../../../../lib/server/bluesky';
+import { MediaError, readStoredMedia, removeStoredMedia, saveDraftMedia } from '../../../../lib/server/media';
+import {
+  attachDraftMedia,
+  deleteDraft,
+  getDraft,
+  getDraftMedia,
+  updateDraft,
+} from '../../../../lib/server/store';
+import { PLATFORMS, type DraftInput, type DraftStatus } from '../../../../lib/types';
 
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+type ParsedPatch = { patch: DraftInput; media: File | null };
+
+async function parsePatch(request: NextRequest): Promise<ParsedPatch | null> {
+  const contentType = request.headers.get('content-type') ?? '';
+
+  if (!contentType.includes('multipart/form-data')) {
+    const patch = await readJson<DraftInput>(request);
+    return patch ? { patch, media: null } : null;
+  }
+
+  const form = await request.formData();
+  const file = form.get('media');
+  const field = (name: string): string | null => {
+    const value = form.get(name);
+    return typeof value === 'string' && value.length > 0 ? value : null;
+  };
+
+  const platform = field('platform');
+  const status = field('status');
+  const scheduledFor = field('scheduledFor');
+
+  return {
+    patch: {
+      title: field('title') ?? undefined,
+      body: field('body') ?? undefined,
+      platform: platform ? (platform as DraftInput['platform']) : undefined,
+      status: status ? (status as DraftStatus) : undefined,
+      scheduledFor: scheduledFor ?? undefined,
+    },
+    media: file instanceof File && file.size > 0 ? file : null,
+  };
+}
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const user = await requireUser(request)
-    if (!user) return unauthorized()
+    const user = await requireUser(request);
+    if (!user) return unauthorized();
 
-    // Support both JSON and multipart form data (for media uploads)
-    const contentType = request.headers.get('content-type') || ''
-    let patch: DraftInput
+    const parsed = await parsePatch(request);
+    if (!parsed) return badRequest('Expected a JSON body.');
 
-    if (contentType.includes('multipart/form-data')) {
-      // Read form data for media upload
-      const formData = await request.formData()
-      const title = formData.get('title') as string | null
-      const body = formData.get('body') as string | null
-      const platform = formData.get('platform') as string | null
-      const status = formData.get('status') as Draft['status'] | null
-      const scheduledFor = formData.get('scheduledFor') as string | null
-      const mediaFile = formData.get('media') as File | null
+    const { patch, media } = parsed;
 
-      if (!title || !body || !platform) {
-        return badRequest('Missing required fields: title, body, platform')
-      }
-
-      const platformKey = platform as Platform | null
-      if (!platformKey || !PLATFORMS.includes(platformKey)) {
-        return badRequest('Unknown platform.')
-      }
-
-      if (status === 'scheduled' && !scheduledFor) {
-        return badRequest('A scheduled post needs a date and time.')
-      }
-
-      const existing = getDraft(user.uid, params.id)
-      if (!existing) return notFound('That post no longer exists.')
-
-      // If publishing to Bluesky with media, publish immediately
-      if (platformKey === 'Bluesky' && status === 'published') {
-        if (mediaFile) {
-          await publishToBluesky(title, body, mediaFile)
-        } else {
-          await publishToBluesky(title, body)
-        }
-      }
-
-      const draft = updateDraft(user.uid, params.id, {
-        title,
-        body,
-        platform: platformKey,
-        status: status ?? existing.status,
-        scheduledFor: status === 'scheduled' ? scheduledFor : undefined,
-      })
-      return json({ draft })
-    } else {
-      // Original JSON handling
-      patch = await readJson<DraftInput>(request)
-      if (!patch) return badRequest('Expected a JSON body.')
-
-      if (patch.platform && !PLATFORMS.includes(patch.platform)) {
-        return badRequest('Unknown platform.')
-      }
-
-      if (patch.status === 'scheduled' && !patch.scheduledFor) {
-        return badRequest('A scheduled post needs a date and time.')
-      }
-
-      const existing = getDraft(user.uid, params.id)
-      if (!existing) return notFound('That post no longer exists.')
-
-      if (patch.status === 'published' && existing.platform === 'Bluesky' && existing.status !== 'published') {
-        await publishToBluesky(existing.title, existing.body)
-      }
-
-      const draft = updateDraft(user.uid, params.id, patch!)
-      return json({ draft })
+    if (patch.platform && !PLATFORMS.includes(patch.platform)) {
+      return badRequest('Unknown platform.');
     }
+
+    if (patch.status === 'scheduled' && !patch.scheduledFor) {
+      return badRequest('A scheduled post needs a date and time.');
+    }
+
+    const existing = getDraft(user.uid, params.id);
+    if (!existing) return notFound('That post no longer exists.');
+
+    if (media && existing.platform !== 'Bluesky') {
+      return badRequest('Media attachments are only supported for Bluesky posts.');
+    }
+
+    if (media) {
+      try {
+        const stored = await saveDraftMedia(user.uid, params.id, media);
+        attachDraftMedia(user.uid, params.id, stored);
+      } catch (error) {
+        if (error instanceof MediaError) return badRequest(error.message);
+        throw error;
+      }
+    }
+
+    const publishingToBluesky =
+      patch.status === 'published' && existing.platform === 'Bluesky' && existing.status !== 'published';
+
+    if (publishingToBluesky) {
+      const stored = getDraftMedia(user.uid, params.id);
+
+      if (stored) {
+        const bytes = readStoredMedia(stored.path);
+        await publishToBluesky(
+          existing.title,
+          existing.body,
+          bytes ? { bytes, mimeType: stored.type, filename: stored.name } : null,
+        );
+      } else {
+        await publishToBluesky(existing.title, existing.body);
+      }
+    }
+
+    const draft = updateDraft(user.uid, params.id, patch)!;
+    return json({ draft });
   } catch (error) {
     if (error instanceof BlueskyUnavailableError) {
       return Response.json(
         { error: error.message },
         { status: 503, headers: { 'Cache-Control': 'no-store' } },
-      )
+      );
     }
 
-    return serverError(error)
+    return serverError(error);
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const user = await requireUser(request)
-    if (!user) return unauthorized()
+    const user = await requireUser(request);
+    if (!user) return unauthorized();
 
-    const deleted = deleteDraft(user.uid, params.id)
-    if (!deleted) return notFound('That post no longer exists.')
+    const stored = getDraftMedia(user.uid, params.id);
+    const deleted = deleteDraft(user.uid, params.id);
+    if (!deleted) return notFound('That post no longer exists.');
 
-    return json({ ok: true })
+    removeStoredMedia(stored?.path ?? null);
+    return json({ ok: true });
   } catch (error) {
-    return serverError(error)
+    return serverError(error);
   }
 }
