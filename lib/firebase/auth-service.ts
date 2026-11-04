@@ -15,7 +15,7 @@ import {
  } from 'firebase/auth';
  import { auth } from './init';
  import { FirebaseError } from 'firebase/app';
- import { sendEmailOTP as sendEmailOTPService, validateOTP, clearOTP } from './email-otp-service';
+ import { requestEmailOtp, verifyEmailOtp, type OtpRequest } from './email-otp-service';
  
  // Email/Password Authentication
  export const signInWithEmail = async (email: string, password: string) => {
@@ -55,8 +55,7 @@ import {
  // OTP Authentication
  export const setupRecaptcha = (recaptchaContainer: string | HTMLElement) => {
    if (typeof window !== 'undefined') {
-     // @ts-ignore - RecaptchaVerifier is not typed in the Firebase SDK
-     return new RecaptchaVerifier(recaptchaContainer, {
+     return new RecaptchaVerifier(auth, recaptchaContainer, {
        'size': 'invisible',
        'callback': (response: string) => {
          // reCAPTCHA solved, allow signInWithPhoneNumber.
@@ -66,7 +65,7 @@ import {
          // Response expired. Ask user to solve reCAPTCHA again.
          console.log('reCAPTCHA expired');
        }
-     }, auth);
+     });
    }
  };
 
@@ -91,39 +90,35 @@ import {
    }
  };
 
- // Email OTP Authentication
-  export const sendEmailOTP = async (email: string) => {
-    try {
-      await sendEmailOTPService(email);
-    } catch (error) {
-      throw handleAuthError(error);
-    }
+ // Email OTP Authentication (codes are generated, hashed and verified by the server)
+  export const sendEmailOTP = async (email: string): Promise<OtpRequest> => {
+    return requestEmailOtp(email);
   };
 
- export const verifyEmailOTP = async (email: string, otp: string) => {
-   try {
-     const isValid = validateOTP(email, otp);
-     if (!isValid) {
-       throw new Error('Invalid or expired OTP');
-     }
-     
-     // Clear the OTP after successful verification
-     clearOTP(email);
-     
-     return isValid;
-   } catch (error) {
-     throw handleAuthError(error);
-   }
+ export const verifyEmailOTP = async (email: string, otp: string): Promise<boolean> => {
+   return verifyEmailOtp(email, otp);
  };
 
- // Helper function to handle Firebase authentication errors
+// Helper function to handle Firebase authentication errors
  const handleAuthError = (error: unknown) => {
    if (error instanceof FirebaseError) {
      switch (error.code) {
        case 'auth/user-not-found':
          return new Error('No user found with this email address.');
        case 'auth/wrong-password':
-         return new Error('Incorrect password. Please try again.');
+       case 'auth/invalid-credential':
+       case 'auth/invalid-login-credentials':
+         return new Error('Incorrect email or password. Please try again.');
+       case 'auth/missing-password':
+         return new Error('Enter your password.');
+       case 'auth/popup-closed-by-user':
+         return new Error('Sign-in window closed before it finished.');
+       case 'auth/cancelled-popup-request':
+         return new Error('Another sign-in attempt is already in progress.');
+       case 'auth/network-request-failed':
+         return new Error('Network error. Check your connection and try again.');
+       case 'auth/operation-not-allowed':
+         return new Error('That sign-in method is not enabled for this project.');
        case 'auth/invalid-email':
          return new Error('Invalid email address format.');
        case 'auth/email-already-in-use':

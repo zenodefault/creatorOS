@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '../../theme-provider';
+import { apiSend } from '../../../lib/api-client';
 import { ArrowLeft, ArrowRight, Brain, Video, Palette, FileText, Mic, Terminal, TrendingUp, Search, HelpCircle } from 'lucide-react';
 
 export default function NicheSelectionPage() {
@@ -11,6 +12,8 @@ export default function NicheSelectionPage() {
   const { theme } = useTheme();
   const [selectedNiche, setSelectedNiche] = useState<string | null>(null);
   const [otherNiche, setOtherNiche] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   const niches = [
     { id: 'video', label: 'Video Creation', icon: Video },
@@ -21,10 +24,22 @@ export default function NicheSelectionPage() {
     { id: 'marketing', label: 'Marketing', icon: TrendingUp },
   ];
 
-  const handleContinue = () => {
-    // In a real app, you would save the selected niche to the user's profile
-    console.log('Selected niche:', selectedNiche || otherNiche);
-    router.push('/onboarding/connect'); // Navigate to next step
+  const handleContinue = async () => {
+    const label = selectedNiche
+      ? niches.find((niche) => niche.id === selectedNiche)?.label ?? otherNiche
+      : otherNiche.trim();
+
+    setSaving(true);
+    setError('');
+
+    try {
+      await apiSend('/api/profile', 'PATCH', { niche: label });
+      router.push('/onboarding/connect');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save your niche.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleBack = () => {
@@ -149,16 +164,19 @@ export default function NicheSelectionPage() {
                   <ArrowLeft className="text-lg" />
                   Back
                 </button>
+                {error && (
+                  <p role="alert" className="w-full text-sm font-medium text-red-600 dark:text-red-400">{error}</p>
+                )}
                 <button
                   onClick={handleContinue}
-                  disabled={!selectedNiche && otherNiche.trim() === ''}
+                  disabled={saving || (!selectedNiche && otherNiche.trim() === '')}
                   className={`w-full md:w-auto px-8 py-3 rounded-xl font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2 ${
                     selectedNiche || otherNiche.trim() !== ''
                       ? 'bg-primary text-white shadow-primary/30 hover:bg-[#3350dd] hover:shadow-primary/50 hover:-translate-y-0.5'
                       : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                   }`}
                 >
-                  Continue
+                  {saving ? 'Saving…' : 'Continue'}
                   <ArrowRight className="text-lg" />
                 </button>
               </div>

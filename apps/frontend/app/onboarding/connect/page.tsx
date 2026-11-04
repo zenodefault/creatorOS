@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '../../theme-provider';
+import { apiSend } from '../../../lib/api-client';
+import type { ChannelMap, Profile } from '../../../lib/types';
 import { 
   Brain, 
   Zap, 
@@ -16,15 +18,45 @@ import {
   ArrowRight
 } from 'lucide-react';
 
+async function fetchProfileChannels(): Promise<ChannelMap | null> {
+  try {
+    const { apiGet } = await import('../../../lib/api-client');
+    const profile = await apiGet<Profile>('/api/profile');
+    return profile.channels;
+  } catch {
+    return null;
+  }
+}
+
 export default function ConnectPage() {
   const router = useRouter();
   const { theme } = useTheme();
   const [connectedPlatforms, setConnectedPlatforms] = useState({
     youtube: false,
-    instagram: true, // Pre-connected as shown in the original
+    instagram: false,
     tiktok: false,
     linkedin: false,
   });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchProfileChannels().then((channels) => {
+      if (!channels || cancelled) return;
+      setConnectedPlatforms({
+        youtube: channels.YouTube,
+        instagram: channels.Instagram,
+        tiktok: channels.TikTok,
+        linkedin: channels.LinkedIn,
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const platforms = [
     {
@@ -38,11 +70,10 @@ export default function ConnectPage() {
     {
       id: 'instagram',
       name: 'Instagram',
-      description: '@creatormind_official',
+      description: 'Sync reels, posts & stories',
       icon: Camera,
       color: 'text-transparent bg-clip-text bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500',
       bgColor: 'bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500 p-[2px]',
-      connected: true,
     },
     {
       id: 'tiktok',
@@ -73,8 +104,25 @@ export default function ConnectPage() {
     router.push('/onboarding/niche');
   };
 
-  const handleContinue = () => {
-    router.push('/onboarding/preferences');
+  const handleContinue = async () => {
+    setSaving(true);
+    setError('');
+
+    try {
+      await apiSend('/api/profile', 'PATCH', {
+        channels: {
+          YouTube: connectedPlatforms.youtube,
+          Instagram: connectedPlatforms.instagram,
+          TikTok: connectedPlatforms.tiktok,
+          LinkedIn: connectedPlatforms.linkedin,
+        },
+      });
+      router.push('/onboarding/preferences');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save your channels.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const totalPlatforms = platforms.length;
@@ -136,7 +184,7 @@ export default function ConnectPage() {
                 <div className="flex flex-col gap-4 mb-8">
                   {platforms.map((platform) => {
                     const IconComponent = platform.icon;
-                    const isConnected = platform.connected || connectedPlatforms[platform.id as keyof typeof connectedPlatforms];
+                    const isConnected = Boolean(connectedPlatforms[platform.id as keyof typeof connectedPlatforms]);
                     
                     return (
                       <div 
@@ -146,7 +194,7 @@ export default function ConnectPage() {
                             ? 'border-primary/40 bg-primary/[0.03] dark:bg-primary/[0.1] dark:border-primary/50' 
                             : 'border-[#e5e7eb] dark:border-gray-700 hover:border-primary/30 hover:bg-primary/[0.02] bg-white dark:bg-gray-800'
                         } transition-all duration-200 ${!isConnected ? 'cursor-pointer' : ''}`}
-                        onClick={() => !isConnected && handlePlatformConnect(platform.id)}
+                        onClick={() => handlePlatformConnect(platform.id)}
                       >
                         <div className="flex items-center gap-4">
                           <div className={`size-12 rounded-lg ${platform.bgColor} flex items-center justify-center shrink-0`}>

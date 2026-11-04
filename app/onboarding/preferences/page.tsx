@@ -76,10 +76,10 @@ export default function PreferencesPage() {
                     <Flag className="text-primary" size={20} />
                     <p className="text-slate-900 dark:text-white text-sm font-semibold uppercase tracking-wide">Preferences</p>
                   </div>
-                  <p className="text-secondary text-sm font-bold leading-normal bg-secondary/10 px-3 py-1 rounded-full">Step 3 of 4</p>
+                  <p className="text-secondary text-sm font-bold leading-normal bg-secondary/10 px-3 py-1 rounded-full">Step 4 of 4</p>
                 </div>
                 <div className="rounded-full bg-slate-200 dark:bg-slate-700 h-2 w-full overflow-hidden">
-                  <div className="h-full rounded-full bg-primary transition-all duration-500 ease-out" style={{ width: '75%' }}></div>
+                  <div className="h-full rounded-full bg-primary transition-all duration-500 ease-out" style={{ width: '100%' }}></div>
                 </div>
               </div>
             </div>

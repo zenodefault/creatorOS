@@ -32,11 +32,20 @@ export function ThemeProvider({
   enableSystem = true,
   ...props
 }: ThemeProviderProps) {
-  const [theme, setThemeState] = useState<Theme>(
-    () => (typeof window !== 'undefined')
-      ? (localStorage.getItem(storageKey) as Theme) || defaultTheme
-      : 'light'
-  );
+  // Always start from the same value on the server and on the client's first
+  // render. Reading localStorage during the initial render made the client
+  // render differ from the server HTML (e.g. a Sun icon with a <circle> where
+  // the server rendered a Moon), which broke hydration. The stored preference
+  // is applied after mount instead.
+  const [theme, setThemeState] = useState<Theme>(defaultTheme);
+
+  useEffect(() => {
+    const storedTheme = window.localStorage.getItem(storageKey) as Theme | null;
+
+    if (storedTheme) {
+      setThemeState(storedTheme);
+    }
+  }, [storageKey]);
 
   useEffect(() => {
     const root = window.document.documentElement;

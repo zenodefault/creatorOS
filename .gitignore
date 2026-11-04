@@ -10,6 +10,9 @@ build/
 .env.local
 .env
 
+# Local database
+.data/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

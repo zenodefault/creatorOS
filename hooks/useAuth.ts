@@ -8,6 +8,7 @@ import {
   signInWithPopup
 } from 'firebase/auth';
 import { auth } from '../lib/firebase/init';
+import type { OtpRequest } from '../lib/firebase/email-otp-service';
 import {
   signInWithEmail,
   signUpWithEmail,
@@ -36,7 +37,7 @@ type AuthContextType = {
   setupRecaptcha: (recaptchaContainer: string | HTMLElement) => any;
   sendOTP: (phoneNumber: string, recaptchaVerifier: any) => Promise<any>;
   verifyOTP: (confirmationResult: any, otp: string) => Promise<void>;
-  sendEmailOTP: (email: string) => Promise<void>;
+  sendEmailOTP: (email: string) => Promise<OtpRequest>;
   verifyEmailOTP: (email: string, otp: string) => Promise<boolean>;
   sendEmailVerification: (email: string) => Promise<void>;
   completeEmailSignIn: (email: string) => Promise<any>;
@@ -70,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
  };
 
   const handleSendEmailOTP = async (email: string) => {
-      await sendEmailOTP(email);
+      return sendEmailOTP(email);
     };
   
     const handleVerifyEmailOTP = async (email: string, otp: string) => {

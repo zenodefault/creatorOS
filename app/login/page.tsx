@@ -44,8 +44,7 @@ export default function LoginPage() {
         // Clear the stored email
         window.localStorage.removeItem('emailForSignIn');
         
-        // Redirect to the home page after successful verification
-        router.push('/');
+        router.push('/dashboard');
       } catch (err: any) {
         setError(err.message || 'An error occurred during email verification');
       } finally {
@@ -66,8 +65,8 @@ export default function LoginPage() {
 
         // Firebase authentication
         await signIn(email, password);
-        // Redirect to onboarding welcome page after successful login
-        router.push('/onboarding/welcome');
+        const next = new URLSearchParams(window.location.search).get('next');
+        router.push(next && next.startsWith('/') ? next : '/dashboard');
       } catch (err: any) {
         setError(err.message || 'An error occurred during login');
       } finally {
@@ -82,7 +81,8 @@ export default function LoginPage() {
       setError('');
       try {
         await signInWithGoogle();
-        router.push('/');
+        const next = new URLSearchParams(window.location.search).get('next');
+        router.push(next && next.startsWith('/') ? next : '/dashboard');
       } catch (err: any) {
         setError(err.message || 'An error occurred during Google login');
       } finally {
@@ -217,7 +217,7 @@ export default function LoginPage() {
             
             {/* Error Message */}
             {error && (
-              <div className="text-red-50 text-sm font-medium bg-red-50 p-3 rounded-lg">
+              <div role="alert" className="text-red-700 dark:text-red-300 text-sm font-medium bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/40 p-3 rounded-lg">
                 {error}
               </div>
             )}

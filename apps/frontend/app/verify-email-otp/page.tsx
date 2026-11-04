@@ -17,6 +17,8 @@ export default function VerifyEmailOTPPage() {
   const [success, setSuccess] = useState(false);
   const [countdown, setCountdown] = useState(30);
   const [isOTPSent, setIsOTPSent] = useState(false);
+  const [devCode, setDevCode] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Handle countdown for resending OTP
@@ -47,11 +49,15 @@ export default function VerifyEmailOTPPage() {
     setLoading(true);
     setError('');
     try {
-      await sendEmailOTP(email);
+      const result = await sendEmailOTP(email);
+      setDevCode(result.devCode ?? null);
       setIsOTPSent(true);
       setCountdown(30);
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000); // Hide success message after 3 seconds
+      setNotice(
+        result.delivery === 'resend'
+          ? 'A 6-digit code is on its way to your inbox.'
+          : 'No mail provider is configured, so the code is shown below.',
+      );
     } catch (err: any) {
       setError(err.message || 'Failed to send OTP');
     } finally {
@@ -138,6 +144,16 @@ export default function VerifyEmailOTPPage() {
             <h1 className="text-3xl font-bold tracking-tight text-[#111218] mb-2">Verify Your Email</h1>
             <p className="text-[#616889] text-sm font-normal">Enter the 6-digit code sent to <span className="font-semibold">{email}</span></p>
           </div>
+
+          {/* Delivery notice / development code */}
+          {notice && (
+            <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-slate-600 dark:text-slate-300">
+              <p>{notice}</p>
+              {devCode && (
+                <p className="mt-2 font-mono text-lg font-bold tracking-[0.3em] text-primary">{devCode}</p>
+              )}
+            </div>
+          )}
 
           {/* OTP Input Fields */}
           <div className="mb-6">
