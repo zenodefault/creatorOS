@@ -70,7 +70,7 @@ export default function ChatbotPage() {
           <div>
             <h2 className="text-2xl font-bold tracking-tight">Assistant</h2>
             <p className="text-slate-500 dark:text-slate-400">
-              Every answer is computed from your own posts, ledger and activity — nothing is invented.
+              Ask for ideas, planning help, or workspace advice. Your recent workspace data helps ground each reply.
             </p>
           </div>
 
@@ -130,7 +130,7 @@ export default function ChatbotPage() {
 
               {sending && (
                 <div className="flex items-center gap-2 text-sm text-slate-400">
-                  <Loader2 className="w-4 h-4 animate-spin" /> Reading your workspace…
+                  <Loader2 className="w-4 h-4 animate-spin" /> Thinking…
                 </div>
               )}
 
@@ -154,7 +154,7 @@ export default function ChatbotPage() {
                 aria-label="Ask the assistant"
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
-                placeholder="Ask about your schedule, numbers or protection…"
+                placeholder="Ask for content ideas, planning help, or workspace advice…"
                 className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-primary dark:border-slate-700 dark:bg-slate-900 dark:text-white"
               />
               <button

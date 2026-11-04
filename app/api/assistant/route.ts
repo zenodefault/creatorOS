@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 
 import { badRequest, json, readJson, serverError, unauthorized } from '../../../lib/server/api';
 import { requireUser } from '../../../lib/server/auth';
-import { buildReply } from '../../../lib/server/assistant';
+import { AssistantUnavailableError, generateAssistantReply } from '../../../lib/server/assistant';
 import {
   addMessage,
   getAnalytics,
@@ -42,22 +42,30 @@ export async function POST(request: NextRequest) {
     if (question.length > 1000) return badRequest('Questions are limited to 1000 characters.');
 
     const profile = loadProfile(user.uid, user.email);
-    const userMessage = addMessage(user.uid, 'user', question);
-
+    const messages = listMessages(user.uid);
     const summary = getAnalytics(user.uid, 30);
-    const reply = buildReply({
+
+    const reply = await generateAssistantReply({
       profile,
       summary,
       drafts: listDrafts(user.uid),
       fingerprints: listFingerprints(user.uid),
-      question,
+      messages: [...messages, { id: 0, role: 'user', content: question, createdAt: new Date().toISOString() }],
     });
 
+    const userMessage = addMessage(user.uid, 'user', question);
     const assistantMessage = addMessage(user.uid, 'assistant', reply);
     recordEvent(user.uid, 'assistant_message', null);
 
     return json({ userMessage, assistantMessage });
   } catch (error) {
+    if (error instanceof AssistantUnavailableError) {
+      return Response.json(
+        { error: error.message },
+        { status: 503, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
+
     return serverError(error);
   }
 }
