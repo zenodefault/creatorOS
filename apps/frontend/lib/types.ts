@@ -1,6 +1,6 @@
-export type Platform = 'YouTube' | 'Instagram' | 'TikTok' | 'LinkedIn';
+export type Platform = 'YouTube' | 'Instagram' | 'TikTok' | 'LinkedIn' | 'Bluesky';
 
-export const PLATFORMS: Platform[] = ['YouTube', 'Instagram', 'TikTok', 'LinkedIn'];
+export const PLATFORMS: Platform[] = ['YouTube', 'Instagram', 'TikTok', 'LinkedIn', 'Bluesky'];
 
 export type DraftStatus = 'draft' | 'scheduled' | 'published';
 

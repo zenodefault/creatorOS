@@ -2,7 +2,8 @@ import type { NextRequest } from 'next/server';
 
 import { badRequest, json, notFound, readJson, serverError, unauthorized } from '../../../../lib/server/api';
 import { requireUser } from '../../../../lib/server/auth';
-import { deleteDraft, updateDraft } from '../../../../lib/server/store';
+import { BlueskyUnavailableError, publishToBluesky } from '../../../../lib/server/bluesky';
+import { deleteDraft, getDraft, updateDraft } from '../../../../lib/server/store';
 import { PLATFORMS, type DraftInput } from '../../../../lib/types';
 
 export const runtime = 'nodejs';
@@ -24,11 +25,23 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       return badRequest('A scheduled post needs a date and time.');
     }
 
-    const draft = updateDraft(user.uid, params.id, patch);
-    if (!draft) return notFound('That post no longer exists.');
+    const existing = getDraft(user.uid, params.id);
+    if (!existing) return notFound('That post no longer exists.');
 
+    if (patch.status === 'published' && existing.platform === 'Bluesky' && existing.status !== 'published') {
+      await publishToBluesky(existing.title, existing.body);
+    }
+
+    const draft = updateDraft(user.uid, params.id, patch)!;
     return json({ draft });
   } catch (error) {
+    if (error instanceof BlueskyUnavailableError) {
+      return Response.json(
+        { error: error.message },
+        { status: 503, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
+
     return serverError(error);
   }
 }

@@ -101,7 +101,12 @@ export default function StudioPage() {
     }
   };
 
-  const publishNow = (draft: Draft) => mutate(draft, { status: 'published' }, `“${draft.title}” marked as published.`);
+  const publishNow = (draft: Draft) =>
+    mutate(
+      draft,
+      { status: 'published' },
+      draft.platform === 'Bluesky' ? `“${draft.title}” published to Bluesky.` : `“${draft.title}” marked as published.`,
+    );
 
   const scheduleDraft = (draft: Draft) => {
     const local = splitScheduledFor(draft.scheduledFor);
@@ -140,7 +145,7 @@ export default function StudioPage() {
           <div>
             <h2 className="text-2xl font-bold tracking-tight">Studio</h2>
             <p className="text-slate-500 dark:text-slate-400">
-              Draft, schedule and publish. Each post is a row in your database, not a browser cache.
+              Draft and schedule in your workspace. Publishing a Bluesky post sends it to your connected Bluesky account.
             </p>
           </div>
 
@@ -343,7 +348,7 @@ export default function StudioPage() {
 
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <CheckCircle2 className="w-3 h-3" />
-            Publishing and scheduling record activity that feeds your dashboard.
+            Publishing to Bluesky sends the post externally; other publishing actions currently record workspace activity.
           </div>
         </div>
       </div>

@@ -171,8 +171,8 @@ export function saveProfile(uid: string, email: string | null, patch: ProfilePat
   if (patch.channels) {
     const update = db.prepare('UPDATE channels SET connected = ? WHERE uid = ? AND platform = ?');
     for (const platform of PLATFORMS) {
-      const value = patch.channels[platform];
-      if (typeof value === 'boolean') update.run(value ? 1 : 0, uid, platform);
+      const value = patch.channels[platform] ?? false;
+      update.run(value ? 1 : 0, uid, platform);
     }
   }
 
@@ -328,6 +328,20 @@ export function findFingerprintByHash(uid: string, sha256: string): Fingerprint 
   return row ? toFingerprint(row) : null;
 }
 
+export function addMessage(uid: string, role: 'user' | 'assistant', content: string): AssistantMessage {
+  const timestamp = nowIso();
+  const result = getDb()
+    .prepare('INSERT INTO assistant_messages (uid, role, content, created_at) VALUES (?, ?, ?, ?)')
+    .run(uid, role, content, timestamp);
+
+  return {
+    id: Number(result.lastInsertRowid),
+    role,
+    content,
+    createdAt: timestamp,
+  };
+}
+
 function dayKeys(days: number): string[] {
   const keys: string[] = [];
   const now = new Date();
@@ -438,8 +452,8 @@ export function getAnalytics(uid: string, days: number): AnalyticsSummary {
     protectedAssets: count('SELECT COUNT(*) AS total FROM fingerprints WHERE uid = ?', [uid]),
     connectedChannels: PLATFORMS.filter((platform) => channels[platform]).length,
     assistantMessages: count(
-      "SELECT COUNT(*) AS total FROM assistant_messages WHERE uid = ? AND role = 'user'",
-      [uid],
+      'SELECT COUNT(*) AS total FROM assistant_messages WHERE uid = ? AND role = ?',
+      [uid, 'user'],
     ),
   };
 
@@ -466,18 +480,4 @@ export function listMessages(uid: string): AssistantMessage[] {
     content: text(row.content),
     createdAt: text(row.created_at),
   }));
-}
-
-export function addMessage(uid: string, role: 'user' | 'assistant', content: string): AssistantMessage {
-  const timestamp = nowIso();
-  const result = getDb()
-    .prepare('INSERT INTO assistant_messages (uid, role, content, created_at) VALUES (?, ?, ?, ?)')
-    .run(uid, role, content, timestamp);
-
-  return {
-    id: Number(result.lastInsertRowid),
-    role,
-    content,
-    createdAt: timestamp,
-  };
 }

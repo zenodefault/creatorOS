@@ -136,7 +136,7 @@ export default function DashboardPage() {
               <StatCard
                 label="Connected channels"
                 value={data?.totals.connectedChannels ?? 0}
-                caption="of 4 platforms"
+                caption="of 5 platforms"
                 Icon={Link2}
               />
             </div>

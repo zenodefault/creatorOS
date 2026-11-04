@@ -10,8 +10,8 @@ import {
   Zap, 
   Play, 
   Camera, 
-  Music, 
-  Briefcase, 
+  Music,  Briefcase,
+  Cloud,
   CheckCircle, 
   Lock,
   ArrowLeft,
@@ -36,6 +36,7 @@ export default function ConnectPage() {
     instagram: false,
     tiktok: false,
     linkedin: false,
+    bluesky: false,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -50,6 +51,7 @@ export default function ConnectPage() {
         instagram: channels.Instagram,
         tiktok: channels.TikTok,
         linkedin: channels.LinkedIn,
+        bluesky: channels.Bluesky,
       });
     });
 
@@ -91,6 +93,14 @@ export default function ConnectPage() {
       color: 'text-[#0077b5]',
       bgColor: 'bg-blue-50 dark:bg-blue-900/20',
     },
+    {
+      id: 'bluesky',
+      name: 'Bluesky',
+      description: 'Publish text posts to your Bluesky account',
+      icon: Cloud,
+      color: 'text-sky-600 dark:text-sky-400',
+      bgColor: 'bg-sky-50 dark:bg-sky-900/20',
+    },
   ];
 
   const handlePlatformConnect = (platformId: string) => {
@@ -115,6 +125,7 @@ export default function ConnectPage() {
           Instagram: connectedPlatforms.instagram,
           TikTok: connectedPlatforms.tiktok,
           LinkedIn: connectedPlatforms.linkedin,
+          Bluesky: connectedPlatforms.bluesky,
         },
       });
       router.push('/onboarding/preferences');
